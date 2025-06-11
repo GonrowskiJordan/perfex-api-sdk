@@ -1,0 +1,15 @@
+{
+    "name": "gonrowskijordan/perfex-api-sdk",
+    "autoload": {
+        "psr-4": {
+            "GonrowskiJordan\\PerfexApiSdk\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "honestworker",
+            "email": "gonrowskijordan@gmail.com"
+        }
+    ],
+    "require": {}
+}
