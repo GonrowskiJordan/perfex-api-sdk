@@ -6,5 +6,5 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'Jordan\\PerfexApiSdk\\' => array($baseDir . '/src'),
+    'PerfexApiSdk\\' => array($baseDir . '/src'),
 );

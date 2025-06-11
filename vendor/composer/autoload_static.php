@@ -7,14 +7,14 @@ namespace Composer\Autoload;
 class ComposerStaticInit8b864767690aab9baf58bd6ef492fada
 {
     public static $prefixLengthsPsr4 = array (
-        'J' => 
+        'P' => 
         array (
-            'Jordan\\PerfexApiSdk\\' => 20,
+            'PerfexApiSdk\\' => 13,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Jordan\\PerfexApiSdk\\' => 
+        'PerfexApiSdk\\' => 
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
