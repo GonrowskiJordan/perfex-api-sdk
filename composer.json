@@ -2,7 +2,9 @@
     "name": "gonrowskijordan/perfex-api-sdk",
     "autoload": {
         "psr-4": {
-            "PerfexApiSdk\\": "src/"
+            "PerfexApiSdk\\": "src/",
+            "PerfexApiSdk\\Controllers": "src/controllers",
+            "PerfexApiSdk\\Models": "src/models"
         }
     },
     "description": "API server module for Perfex CRM",
