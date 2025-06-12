@@ -3,8 +3,8 @@
     "autoload": {
         "psr-4": {
             "PerfexApiSdk\\": "src/",
-            "PerfexApiSdk\\Controllers": "src/controllers",
-            "PerfexApiSdk\\Models": "src/models"
+            "PerfexApiSdk\\Controllers\\": "src/controllers",
+            "PerfexApiSdk\\Models\\": "src/models"
         }
     },
     "description": "API server module for Perfex CRM",
