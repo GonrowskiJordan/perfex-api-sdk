@@ -5,6 +5,8 @@
             "PerfexApiSdk\\": "src/"
         }
     },
+    "description": "API server module for Perfex CRM",
+    "license": "MIT",
     "authors": [
         {
             "name": "gonrowskijordan",
