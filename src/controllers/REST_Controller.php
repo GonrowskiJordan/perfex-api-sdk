@@ -2,6 +2,8 @@
 
 namespace PerfexApiSdk\Controllers;
 
+use CI_Controller;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
@@ -367,117 +369,6 @@ abstract class REST_Controller extends CI_Controller {
     }
 
     /**
-     * Limit Method
-     * ------------------------
-     * @param: {int} number
-     * @param: {type} ip
-     * 
-     * Total Number Limit without Time
-     * 
-     * @param: {minute} time/everyday
-     * Total Number Limit with Last {3,4,5...} minute
-     * --------------------------------------------------------
-     */
-    protected function _limit_method(array $data)
-    {
-        // check limit database table exists
-        if (!$this->db->table_exists($this->CI->config->item('api_limit_table_name'))) {
-            $this->_response(['status' => FALSE, 'error' => 'Create API Limit Database Table'], self::HTTP_BAD_REQUEST);
-        }
-
-        $limit_num = $data[0]; // limit number
-        $limit_type = $data[1]; // limit type
-
-        $limit_time = isset($data[2]) ? $data[2] : ''; // time minute
-
-        if ($limit_type == 'ip')
-        {
-            $where_data_ip = [
-                'uri' => $this->CI->uri->uri_string(),
-                'class' => $this->CI->router->fetch_class(),
-                'method' => $this->CI->router->fetch_method(),
-                'ip_address' => $this->CI->input->ip_address(),
-            ];
-
-            $limit_query = $this->CI->db->get_where($this->CI->config->item('api_limit_table_name'), $where_data_ip);
-            if ($this->db->affected_rows() >= $limit_num)
-            {
-                // time limit not empty
-                if (isset($limit_time) AND !empty($limit_time))
-                {
-                    // if time limit `numeric` numbers
-                    if (is_numeric($limit_time))
-                    {
-                        $limit_timestamp = time() - ($limit_time*60);
-                        // echo Date('d/m/Y h:i A', $times);
-    
-                        $where_data_ip_with_time = [
-                            'uri' => $this->CI->uri->uri_string(),
-                            'class' => $this->CI->router->fetch_class(),
-                            'method' => $this->CI->router->fetch_method(),
-                            'ip_address' => $this->CI->input->ip_address(),
-                            'time >=' => $limit_timestamp
-                        ];
-    
-                        $time_limit_query = $this->CI->db->get_where($this->API_LIMIT_TABLE_NAME, $where_data_ip_with_time);
-                        // echo $this->CI->db->last_query();
-                        if ($this->db->affected_rows() >= $limit_num)
-                        {
-                            $this->_response(['status' => FALSE, 'error' => 'This IP Address has reached the time limit for this method'], self::HTTP_REQUEST_TIMEOUT);
-                        } else
-                        {
-                            // insert limit data
-                            $this->limit_data_insert();
-                        }
-                    }
-
-                    // if time limit equal to `everyday`
-                    if ($limit_time == 'everyday')
-                    {
-                        $this->CI->load->helper('date');
-
-                        $bad_date = mdate('%d-%m-%Y', time());
-
-                        $start_date = nice_date($bad_date .' 12:00 AM', 'd-m-Y h:i A'); // {DATE} 12:00 AM
-                        $end_date = nice_date($bad_date .' 12:00 PM', 'd-m-Y h:i A'); // {DATE} 12:00 PM
-                        
-                        $start_date_timestamp = strtotime($start_date);
-                        $end_date_timestamp = strtotime($end_date);
-                       
-                        $where_data_ip_with_time = [
-                            'uri' => $this->CI->uri->uri_string(),
-                            'class' => $this->CI->router->fetch_class(),
-                            'method' => $this->CI->router->fetch_method(),
-                            'ip_address' => $this->CI->input->ip_address(),
-                            'time >=' => $start_date_timestamp,
-                            'time <=' => $end_date_timestamp,
-                        ];
-    
-                        $time_limit_query = $this->CI->db->get_where($this->API_LIMIT_TABLE_NAME, $where_data_ip_with_time);
-                        // echo $this->CI->db->last_query();exit;
-                        if ($this->db->affected_rows() >= $limit_num)
-                        {                            
-                            $this->response([$this->config->item('rest_status_field_name') => FALSE, $this->config->item('rest_message_field_name') => $this->lang->line('text_rest_unauthorized') ], self::HTTP_UNAUTHORIZED);
-                            $this->_response(['status' => FALSE, 'error' => 'This IP Address has reached the time limit for this method'], self::HTTP_REQUEST_TIMEOUT);
-                        } else {
-                            // insert limit data
-                            $this->limit_data_insert();
-                        }
-                    }
-                } else {
-                    $this->_response(['status' => FALSE, 'error' => 'This IP Address has reached limit for this method'], self::HTTP_REQUEST_TIMEOUT);
-                }
-
-            } else {
-                // insert limit data
-                $this->limit_data_insert();
-            }
-        } else {
-            $this->_response(['status' => FALSE, 'error' => 'Limit Type Invalid'], self::HTTP_BAD_REQUEST);
-        }
-    }
-
-    /**
      * Constructor for the REST API
      *
      * @access public
@@ -487,6 +378,8 @@ abstract class REST_Controller extends CI_Controller {
     public function __construct($config = 'rest') {
         parent::__construct();
         
+        $this->load->model('rest_model');
+
         $this->preflight_checks();
 
         // Set the default value of global xss filtering. Same approach as CodeIgniter 3
@@ -500,12 +393,13 @@ abstract class REST_Controller extends CI_Controller {
         // Start the timer for how long the request takes
         $this->_start_rtime = microtime(TRUE);
 
+        $this->get_local_config('api');
         // Load the rest.php configuration file
         $this->get_local_config($config);
 
         // At present the library is bundled with REST_Controller 2.5+, but will eventually be part of CodeIgniter (no citation)
         if (class_exists('Format')) {
-            $this->format = new Format();
+            $this->format = new \Format();
         } else {
             $this->load->library('Format', NULL, 'libraryFormat');
             $this->format = $this->libraryFormat;
@@ -541,9 +435,9 @@ abstract class REST_Controller extends CI_Controller {
         $this->lang->load('rest_controller', $language, FALSE, TRUE, __DIR__ . '/../');
 
         // Initialise the response, request and rest objects
-        $this->request = new stdClass();
-        $this->response = new stdClass();
-        $this->rest = new stdClass();
+        $this->request = new \stdClass();
+        $this->response = new \stdClass();
+        $this->rest = new \stdClass();
 
         // Check to see if the current IP address is blacklisted
         if ($this->config->item('rest_ip_blacklist_enabled') === TRUE) {
@@ -584,9 +478,6 @@ abstract class REST_Controller extends CI_Controller {
         if ($this->{'_' . $this->request->method . '_args'} === null) {
             $this->{'_' . $this->request->method . '_args'} = [];
         }
-        
-        // api limit function `_limit_method()`
-        $this->_limit_method();
 
         // Now we know all about our request, let's try and parse the body if it exists
         if ($this->request->format && $this->request->body) {
@@ -659,12 +550,8 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         // load authorization token library
-        $this->load->library('Authorization_Token');
-        $this->load->model('Api_model');
-        $is_valid_token = $this->authorization_token->validateToken();
-        $token = $this->authorization_token->get_token();
-        $check_token = $this->Api_model->check_token($token);
-        if ($is_valid_token['status'] == false || $check_token === false) {
+        $check_token = $this->rest_model->check_token($token);
+        if ($check_token === false) {
             $message = array('status' => FALSE, 'message' => $is_valid_token['message']);
             $this->response($message, REST_Controller::HTTP_NOT_FOUND);
         }
@@ -711,12 +598,12 @@ abstract class REST_Controller extends CI_Controller {
         // Check to see if PHP is equal to or greater than 5.4.x
         if (is_php('5.4') === FALSE) {
             // CodeIgniter 3 is recommended for v5.4 or above
-            throw new Exception('Using PHP v' . PHP_VERSION . ', though PHP v5.4 or greater is required');
+            throw new \Exception('Using PHP v' . PHP_VERSION . ', though PHP v5.4 or greater is required');
         }
 
         // Check to see if this is CI 3.x
         if (explode('.', CI_VERSION, 2) [0] < 3) {
-            throw new Exception('REST Server requires CodeIgniter 3.x');
+            throw new \Exception('REST Server requires CodeIgniter 3.x');
         }
     }
 
@@ -743,7 +630,7 @@ abstract class REST_Controller extends CI_Controller {
 
         // Does this method exist? If not, try executing an index method
         if (!method_exists($this, $controller_method)) {
-            $controller_method = "index_" . $this->request->method;
+            $controller_method = "data_" . $this->request->method;
             array_unshift($arguments, $object_called);
         }
 
@@ -782,14 +669,14 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         $object_name = get_class($this);
-        $token = $this->authorization_token->get_token();
-        $check_token_permission = $this->Api_model->check_token_permission($token, strtolower($object_name), str_replace("data_", "", $controller_method));
+        $token = $this->rest_model->get_token();
+        $check_token_permission = $this->rest_model->check_token_permission($token, strtolower($object_name), str_replace("data_", "", $controller_method));
         if ($check_token_permission === false) {
             $message = array('status' => FALSE, 'message' => $this->lang->line('text_rest_api_key_permissions'));
             $this->response($message, self::HTTP_NOT_PERMISSION);
             $this->is_valid_request = false;
         }
-
+        
         // Doing key related stuff? Can only do it if they have a key right?
         if ($this->config->item('rest_enable_keys') && empty($this->rest->key) === FALSE) {
             // Check the limit
@@ -1066,7 +953,7 @@ abstract class REST_Controller extends CI_Controller {
 
         // Find the key from server or arguments
         if (($key = isset($this->_args[$api_key_variable]) ? $this->_args[$api_key_variable] : $this->input->server($key_name))) {
-            if (!($row = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get($this->config->item('rest_keys_table'))->row())) {
+            if (!($row = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get($this->config->item('rest_api_keys'))->row())) {
                 return FALSE;
             }
             $this->rest->key = $row->{$this->config->item('rest_key_column') };
@@ -1074,12 +961,10 @@ abstract class REST_Controller extends CI_Controller {
             isset($row->level) && $this->rest->level = $row->level;
             isset($row->ignore_limits) && $this->rest->ignore_limits = $row->ignore_limits;
             $this->_apiuser = $row;
-            /*
-            
-             * If "is private key" is enabled, compare the ip address with the list
-            
-             * of valid ip addresses stored in the database
-            
+
+            /*            
+             * If "is private key" is enabled, compare the ip address with the list            
+             * of valid ip addresses stored in the database            
             */
             if (empty($row->is_private_key) === FALSE) {
                 // Check for a list of valid ip addresses
@@ -1144,7 +1029,16 @@ abstract class REST_Controller extends CI_Controller {
      */
     protected function _log_request($authorized = FALSE) {
         // Insert the request into the log table
-        $is_inserted = $this->rest->db->insert($this->config->item('rest_logs_table'), ['uri' => $this->uri->uri_string(), 'method' => $this->request->method, 'params' => $this->_args ? ($this->config->item('rest_logs_json_params') === TRUE ? json_encode($this->_args) : serialize($this->_args)) : NULL, 'api_key' => isset($this->rest->key) ? $this->rest->key : '', 'ip_address' => $this->input->ip_address(), 'time' => time(), 'authorized' => $authorized]);
+        $is_inserted = $this->rest->db->insert($this->config->item('rest_logs_table'),
+            [
+                'uri' => $this->uri->uri_string(),
+                'method' => $this->request->method,
+                'params' => $this->_args ? ($this->config->item('rest_logs_json_params') === TRUE ? json_encode($this->_args) : serialize($this->_args)) : NULL,
+                'api_key' => isset($this->rest->key) ? $this->rest->key : '',
+                'ip_address' => $this->input->ip_address(),
+                'time' => time(),
+                'authorized' => $authorized
+            ]);
 
         // Get the last insert id to update at a later stage of the request
         $this->_insert_id = $this->rest->db->insert_id();
@@ -1168,14 +1062,14 @@ abstract class REST_Controller extends CI_Controller {
 
         switch ($this->config->item('rest_limits_method')) {
             case 'IP_ADDRESS':
-                $limited_uri = 'ip-address:' . $this->input->ip_address();
+                $limited_uri = $this->input->ip_address();
                 $api_key = $this->input->ip_address();
             break;
             case 'API_KEY':
-                $limited_uri = 'api-key:' . $api_key;
+                $limited_uri = $api_key;
             break;
             case 'METHOD_NAME':
-                $limited_uri = 'method-name:' . $controller_method;
+                $limited_uri = $controller_method;
             break;
             case 'ROUTED_URL':
             default:
@@ -1197,7 +1091,8 @@ abstract class REST_Controller extends CI_Controller {
         $limit = $this->methods[$controller_method]['limit'];
         $time_limit = (isset($this->methods[$controller_method]['time']) ? $this->methods[$controller_method]['time'] : 3600); // 3600 = 60 * 60
         // Get data about a keys' usage and limit to one row
-        $result = $this->rest->db->where('uri', $limited_uri)->where('api_key', $api_key)->get($this->config->item('rest_limits_table'))->row();
+        $result = $this->rest->db->where('uri', $limited_uri)->where('api_key', $api_key)
+            ->get($this->config->item('rest_limits_table'))->row();
 
         // No calls have been made for this key
         if ($result === NULL) {

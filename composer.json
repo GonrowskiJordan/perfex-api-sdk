@@ -4,7 +4,8 @@
         "psr-4": {
             "PerfexApiSdk\\": "src/",
             "PerfexApiSdk\\Controllers\\": "src/controllers",
-            "PerfexApiSdk\\Models\\": "src/models"
+            "PerfexApiSdk\\Models\\": "src/models",
+            "Firebase\\JWT\\": "src/third-party/firebase-jwt"
         }
     },
     "description": "API server module for Perfex CRM",
