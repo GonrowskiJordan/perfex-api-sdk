@@ -1,12 +1,14 @@
 <?php
 
+namespace PerfexApiSdk\Models;
+
 use app\services\utilities\Arr;
 
 defined('BASEPATH') or exit('No direct script access allowed');
 
 require_once(APPPATH . 'core/App_Model.php');
 
-class Calendar_model extends App_Model
+class Calendar_model extends \App_Model
 {
     public function __construct()
     {
@@ -14,7 +16,7 @@ class Calendar_model extends App_Model
 
         if (!$this->db->table_exists(db_prefix() . 'playground_events')) {
             $this->db->query('CREATE TABLE `' . db_prefix() . 'playground_events' . '` (
-                eventid` int(11) NOT NULL AUTO_INCREMENT,
+                `eventid` int(11) NOT NULL AUTO_INCREMENT,
                 `title` longtext NOT NULL,
                 `description` mediumtext DEFAULT NULL,
                 `userid` int(11) NOT NULL,
@@ -33,7 +35,7 @@ class Calendar_model extends App_Model
     public function get_events($id = '', $playground = false)
     {
         $this->db->select('*');
-        $this->db->from(db_prefix() . ($playground ? 'playground' : '') . 'events');
+        $this->db->from(db_prefix() . ($playground ? 'playground_' : '') . 'events');
         if ($id >0) {
             $this->db->where('eventid', $id);
         }
@@ -56,7 +58,7 @@ class Calendar_model extends App_Model
         $data['description'] = nl2br($data['description']);
         if (isset($data['eventid'])) {
             $this->db->where('eventid', $data['eventid']);
-            $event = $this->db->get(db_prefix() . ($playground ? 'playground' : '') . 'events')->row();
+            $event = $this->db->get(db_prefix() . ($playground ? 'playground_' : '') . 'events')->row();
             if (!$event) {
                 return false;
             }
@@ -69,7 +71,7 @@ class Calendar_model extends App_Model
             $data = hooks()->apply_filters('event_update_data', $data, $data['eventid']);
 
             $this->db->where('eventid', $data['eventid']);
-            $this->db->update(db_prefix() . ($playground ? 'playground' : '') . 'events', $data);
+            $this->db->update(db_prefix() . ($playground ? 'playground_' : '') . 'events', $data);
             if ($this->db->affected_rows() > 0) {
                 return true;
             }
@@ -79,7 +81,7 @@ class Calendar_model extends App_Model
 
         $data = hooks()->apply_filters('event_create_data', $data);
 
-        $this->db->insert(db_prefix() . ($playground ? 'playground' : '') . 'events', $data);
+        $this->db->insert(db_prefix() . ($playground ? 'playground_' : '') . 'events', $data);
         $insert_id = $this->db->insert_id();
 
         if ($insert_id) {

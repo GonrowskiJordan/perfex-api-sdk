@@ -44,18 +44,19 @@ class Authorization_Token
 	{
         $this->CI =& get_instance();
 
-        /** 
-         * jwt config file load
-         */
-        $this->CI->load->config('jwt');
-
-        /**
-         * Load Config Items Values 
-         */
-        $this->token_key            = $this->CI->config->item('jwt_key');
-        $this->token_algorithm      = $this->CI->config->item('jwt_algorithm');
-        $this->token_header         = $this->CI->config->item('token_header');
-        $this->token_expire_time    = $this->CI->config->item('token_expire_time');
+        $config = array();
+        include (__DIR__ . "/../config/jwt.php");
+        foreach ($config AS $key => $value) {
+            if ($key == 'jwt_key') {
+                $this->token_key           = $value;
+            } else if ($key == 'jwt_algorithm') {
+                $this->token_algorithm     = $value;
+            } else if ($key == 'token_header') {
+                $this->token_header        = $value;
+            } else if ($key == 'token_expire_time') {
+                $this->token_expire_time        = $value;
+            }
+        }
     }
 
     /**

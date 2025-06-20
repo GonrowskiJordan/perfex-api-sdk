@@ -102,7 +102,7 @@ class Calendar extends REST_Controller
      */    
      public function data_get($id = '')
     {
-        $data = $this->calendar_model->get_events($id);
+        $data = $this->calendar_model->get_events($id, $this->playground());
 
         if ($data) {
             $this->response($data, REST_Controller::HTTP_OK);
@@ -177,7 +177,7 @@ class Calendar extends REST_Controller
             $message = array('status' => FALSE, 'error' => $this->form_validation->error_array(), 'message' => validation_errors());
             $this->response($message, REST_Controller::HTTP_NOT_FOUND);
         } else {
-            $id = $this->calendar_model->event($data);
+            $id = $this->calendar_model->event($data, $this->playground());
 
             if ($id > 0 && !empty($id)) {
                 $message = array('status' => TRUE, 'message' => 'Data Added Successfully');
@@ -242,7 +242,7 @@ class Calendar extends REST_Controller
             $update_data = $this->input->post();
 
             $data = $_POST;
-            $output = $this->calendar_model->event($data);
+            $output = $this->calendar_model->event($data, $this->playground());
 
             if ($output > 0 && !empty($output)) {
                 $message = array('status' => TRUE, 'message' => 'Data Update Successful.');

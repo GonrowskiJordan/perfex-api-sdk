@@ -13,6 +13,11 @@ class REST_model extends \App_Model
     /**
      * Token
      */
+    protected $CI;
+
+    /**
+     * Token
+     */
     protected $token;
     
     protected $authorization_koken;
@@ -79,11 +84,6 @@ class REST_model extends \App_Model
                 PRIMARY KEY (`id`));
             ');
         }
-
-        $this->token_key            = $this->config->item('jwt_key');
-        $this->token_algorithm      = $this->config->item('jwt_algorithm');
-        $this->token_header         = $this->config->item('rest_key_name');
-        $this->token_expire_time    = $this->config->item('token_expire_time');
 
         $this->authorization_koken = new Authorization_Token();
     }

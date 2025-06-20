@@ -554,9 +554,9 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         // load authorization token library
-        $is_valid_token = $check_token = $this->authorization_koken->validateToken();
+        $is_valid_token = $check_token = $this->authorization_token->validateToken();
         $token = $this->authorization_token->get_token();
-        $check_token = $this->authorization_token->check_token($token);
+        $check_token = $this->rest_model->check_token($token);
         if ($is_valid_token['status'] == false || $check_token === false) {
             $message = array(
                 'status' => FALSE,
@@ -1909,5 +1909,9 @@ abstract class REST_Controller extends CI_Controller {
         if ($this->input->method() === 'options') {
             exit;
         }
+    }
+
+    public function playground() {
+        return $this->rest->playground;
     }
 }
