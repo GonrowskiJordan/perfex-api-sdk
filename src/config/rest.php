@@ -401,6 +401,8 @@ $config['rest_key_length'] = 40;
 */
 $config['rest_key_name'] = 'X-API-KEY';
 
+$config['rest_playground_name'] = 'X-PLAYGROUND';
+
 /*
 |--------------------------------------------------------------------------
 | REST Enable Logging

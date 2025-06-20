@@ -4,7 +4,8 @@
         "psr-4": {
             "PerfexApiSdk\\": "src/",
             "PerfexApiSdk\\Controllers\\": "src/controllers",
-            "PerfexApiSdk\\Models\\": "src/models"
+            "PerfexApiSdk\\Models\\": "src/models",
+            "PerfexApiSdk\\Libraries\\": "src/libraries"
         }
     },
     "description": "API server module for Perfex CRM",

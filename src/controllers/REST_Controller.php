@@ -3,7 +3,9 @@
 namespace PerfexApiSdk\Controllers;
 
 use CI_Controller;
-use PerfexApiSdk\Models\REST_model as REST_model;
+
+use PerfexApiSdk\Models\REST_model;
+use PerfexApiSdk\Libraries\Authorization_Token;
 
 defined('BASEPATH') OR exit('No direct script access allowed');
 
@@ -380,6 +382,7 @@ abstract class REST_Controller extends CI_Controller {
         parent::__construct();
         
         $this->rest_model = new REST_model();
+        $this->authorization_token = new Authorization_Token();
 
         $this->preflight_checks();
 
@@ -551,10 +554,14 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         // load authorization token library
-        $is_valid_token = $check_token = $this->rest_model->validateToken();
-        $check_token = $this->rest_model->check_token();
+        $is_valid_token = $check_token = $this->authorization_koken->validateToken();
+        $token = $this->authorization_token->get_token();
+        $check_token = $this->authorization_token->check_token($token);
         if ($is_valid_token['status'] == false || $check_token === false) {
-            $message = array('status' => FALSE, 'message' => $is_valid_token['message']);
+            $message = array(
+                'status' => FALSE,
+                'message' => isset($is_valid_token['message']) ? $is_valid_token['message'] : sprintf($this->lang->line('text_rest_invalid_api_key'), $this->rest->key)
+            );
             $this->response($message, REST_Controller::HTTP_NOT_FOUND);
         }
     }
@@ -671,7 +678,7 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         $object_name = get_class($this);
-        $token = $this->rest_model->get_token();
+        $token = $this->authorization_token->get_token();
         $check_token_permission = $this->rest_model->check_token_permission($token, strtolower($object_name), str_replace("data_", "", $controller_method));
         if ($check_token_permission === false) {
             $message = array('status' => FALSE, 'message' => $this->lang->line('text_rest_api_key_permissions'));
@@ -952,16 +959,19 @@ abstract class REST_Controller extends CI_Controller {
         $this->rest->level = NULL;
         $this->rest->user = NULL;
         $this->rest->ignore_limits = FALSE;
+        $this->rest->playground = FALSE;
 
         // Find the key from server or arguments
         if (($key = isset($this->_args[$api_key_variable]) ? $this->_args[$api_key_variable] : $this->input->server($key_name))) {
             if (!($row = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get($this->config->item('rest_keys_table'))->row())) {
                 return FALSE;
             }
-            $this->rest->key = $row->{$this->config->item('rest_key_column') };
+
+            $this->rest->key = $row->{$this->config->item('rest_key_column')};
             isset($row->user) && $this->rest->user = $row->user;
             isset($row->level) && $this->rest->level = $row->level;
             isset($row->ignore_limits) && $this->rest->ignore_limits = $row->ignore_limits;
+            $this->rest->playground = isset($this->_args[strtolower($this->config->item('rest_playground_name'))]) ? TRUE : FALSE;
             $this->_apiuser = $row;
 
             /*            
