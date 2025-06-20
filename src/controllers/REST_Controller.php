@@ -3,6 +3,7 @@
 namespace PerfexApiSdk\Controllers;
 
 use CI_Controller;
+use PerfexApiSdk\Models\REST_model as REST_model;
 
 defined('BASEPATH') OR exit('No direct script access allowed');
 
@@ -188,7 +189,7 @@ abstract class REST_Controller extends CI_Controller {
 
     /**
      * Contains details about the REST API
-     * Fields: db, ignore_limits, key, level, user_id
+     * Fields: db, ignore_limits, key, level, user
      * Note: This is a dynamic object (stdClass)
      *
      * @var object
@@ -378,7 +379,7 @@ abstract class REST_Controller extends CI_Controller {
     public function __construct($config = 'rest') {
         parent::__construct();
         
-        $this->load->model('rest_model');
+        $this->rest_model = new REST_model();
 
         $this->preflight_checks();
 
@@ -550,8 +551,9 @@ abstract class REST_Controller extends CI_Controller {
         }
 
         // load authorization token library
-        $check_token = $this->rest_model->check_token($token);
-        if ($check_token === false) {
+        $is_valid_token = $check_token = $this->rest_model->validateToken();
+        $check_token = $this->rest_model->check_token();
+        if ($is_valid_token['status'] == false || $check_token === false) {
             $message = array('status' => FALSE, 'message' => $is_valid_token['message']);
             $this->response($message, REST_Controller::HTTP_NOT_FOUND);
         }
@@ -948,16 +950,16 @@ abstract class REST_Controller extends CI_Controller {
         $key_name = 'HTTP_' . strtoupper(str_replace('-', '_', $api_key_variable));
         $this->rest->key = NULL;
         $this->rest->level = NULL;
-        $this->rest->user_id = NULL;
+        $this->rest->user = NULL;
         $this->rest->ignore_limits = FALSE;
 
         // Find the key from server or arguments
         if (($key = isset($this->_args[$api_key_variable]) ? $this->_args[$api_key_variable] : $this->input->server($key_name))) {
-            if (!($row = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get($this->config->item('rest_api_keys'))->row())) {
+            if (!($row = $this->rest->db->where($this->config->item('rest_key_column'), $key)->get($this->config->item('rest_keys_table'))->row())) {
                 return FALSE;
             }
             $this->rest->key = $row->{$this->config->item('rest_key_column') };
-            isset($row->user_id) && $this->rest->user_id = $row->user_id;
+            isset($row->user) && $this->rest->user = $row->user;
             isset($row->level) && $this->rest->level = $row->level;
             isset($row->ignore_limits) && $this->rest->ignore_limits = $row->ignore_limits;
             $this->_apiuser = $row;

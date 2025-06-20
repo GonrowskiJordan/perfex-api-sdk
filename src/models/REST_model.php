@@ -9,13 +9,50 @@ require_once __DIR__ . '/../third-party/firebase-jwt/ExpiredException.php';
 require_once __DIR__ . '/../third-party/firebase-jwt/SignatureInvalidException.php';
 require_once __DIR__ . '/../third-party/firebase-jwt/JWT.php';
 
-use Firebase\JWT\JWT as Api_JWT;
+require_once(APPPATH . 'core/App_Model.php');
 
-class REST_model extends App_Model
+use Firebase\JWT\JWT as Api_JWT;
+use Firebase\JWT\Key as Api_Key;
+
+class REST_model extends \App_Model
 {
+    /**
+     * Token
+     */
+    protected $token;
+
+    /**
+     * Token Key
+     */
+    protected $token_key;
+
+    /**
+     * Token algorithm
+     */
+    protected $token_algorithm;
+
+    /**
+     * Token Expire Time
+     * ------------------
+     * (1 day) : 60 * 60 * 24 = 86400
+     * (1 hour) : 60 * 60 = 3600
+     */
+    protected $token_expire_time = 315569260; 
+
+    /**
+     * Token Request Header Name
+     */
+    protected $token_header;
+
     public function __construct()
     {
         parent::__construct();
+
+        $config = array();
+        include (__DIR__ . "/../config/jwt.php");
+        foreach ($config AS $key => $value) {
+            $this->config->set_item($key, $value);
+        }
 
         $config = array();
         include (__DIR__ . "/../config/api.php");
@@ -30,6 +67,50 @@ class REST_model extends App_Model
         }
 
         include (__DIR__ . "/../helpers/api_helper.php");
+        
+        if (!$this->db->table_exists(db_prefix() . $this->config->item('rest_keys_table'))) {
+            $this->db->query('CREATE TABLE `' . db_prefix() . '' . $this->config->item('rest_keys_table') . '` (
+                `id` INT(11) NOT NULL AUTO_INCREMENT,
+                `user` VARCHAR(50) NOT NULL,
+                `name` VARCHAR(50) NOT NULL,
+                `token` VARCHAR(255) NOT NULL,
+                `expiration_date` DATETIME NULL,
+                `permission_enable` TINYINT(4) DEFAULT 0,
+                `quota_limit` INT(11) NOT NULL DEFAULT 1000,
+                `quota_remaining` INT(11) NOT NULL DEFAULT 1000,
+                `quota_reset` DATETIME NOT NULL,
+                `rate_limit`  INT(11) NOT NULL DEFAULT 60,
+                `rate_remaining` INT(11) NOT NULL DEFAULT 60,
+                `rate_reset` DATETIME NOT NULL,
+                `level` INT(11) NULL,
+                `ignore_limits` INT(11) NULL,
+                PRIMARY KEY (`id`));
+            ');
+        }
+        if (!$this->db->table_exists(db_prefix() . $this->config->item('rest_key_permissions_table'))) {
+            $this->db->query('CREATE TABLE `' . db_prefix() . '' . $this->config->item('rest_key_permissions_table') . '` (
+                `key_id` int(11) NOT NULL,
+                `feature` varchar(50) NOT NULL,
+                `capability` varchar(50) NOT NULL);
+            ');
+        }
+        if (!$this->db->table_exists(db_prefix() . $this->config->item('rest_key_limits_table'))) {
+            $this->db->query('CREATE TABLE `' . db_prefix() . '' . $this->config->item('rest_key_limits_table') . '` (
+                `id` INT(11) NOT NULL AUTO_INCREMENT,
+                `key_id` INT(11) NOT NULL,
+                `uri` VARCHAR(511) NOT NULL,
+                `class` VARCHAR(511) NOT NULL,
+                `method` VARCHAR(511) NOT NULL,
+                `ip_address` VARCHAR(63) NOT NULL,
+                `time` DATETIME NOT NULL,
+                PRIMARY KEY (`id`));
+            ');
+        }
+
+        $this->token_key            = $this->config->item('jwt_key');
+        $this->token_algorithm      = $this->config->item('jwt_algorithm');
+        $this->token_header         = $this->config->item('rest_key_name');
+        $this->token_expire_time    = $this->config->item('token_expire_time');
     }
 
     /**
@@ -58,7 +139,7 @@ class REST_model extends App_Model
     {
         $this->db->select('*');
         if ('' != $id) {
-            $this->db->where('api_id', $id);
+            $this->db->where('key_id', $id);
             if ('' != $feature) {
                 $this->db->where('feature', $feature);
             }
@@ -122,14 +203,14 @@ class REST_model extends App_Model
                             if ('' != $capability) {
                                 if ($api_capability == $capability) {
                                     $permissions[] = [
-                                        'api_id' => $id,
+                                        'key_id' => $id,
                                         'feature' => $feature,
                                         'capability' => $api_capability,
                                     ];
                                 }
                             } else {
                                 $permissions[] = [
-                                    'api_id' => $id,
+                                    'key_id' => $id,
                                     'feature' => $feature,
                                     'capability' => $api_capability,
                                 ];
@@ -143,7 +224,7 @@ class REST_model extends App_Model
         foreach ($permissions as $permission) {
             $this->db->insert(db_prefix() . $this->config->item('rest_key_permissions_table'), $permission);
             if ($this->db->affected_rows() > 0) {
-                log_activity('New API Permssion Added [API ID: ' . $permission['api_id'] . ', Feature: ' . $permission['feature'] . ', Capability: ' . $permission['capability'] . ']');
+                log_activity('New API Permssion Added [API ID: ' . $permission['key_id'] . ', Feature: ' . $permission['feature'] . ', Capability: ' . $permission['capability'] . ']');
             }
         }
     }
@@ -151,7 +232,7 @@ class REST_model extends App_Model
     public function remove_permissions($id = '', $feature = '', $capability = '')
     {
         if ('' != $id) {
-            $this->db->where('api_id', $id);
+            $this->db->where('key_id', $id);
             if ('' != $feature) {
                 $this->db->where('feature', $feature);
             }
@@ -177,7 +258,7 @@ class REST_model extends App_Model
             $this->db->where('id', $id);
         }
 
-        return $this->db->get(db_prefix() . $this->config->item('rest_api_keys'))->result_array();
+        return $this->db->get(db_prefix() . $this->config->item('rest_keys_table'))->result_array();
     }
 
     public function add_user($data)
@@ -196,10 +277,10 @@ class REST_model extends App_Model
 
         $data['expiration_date'] = to_sql_date($data['expiration_date'], true);
         $data['permission_enable'] = 1;
-        $this->db->insert(db_prefix() . $this->config->item('rest_api_keys'), $data);
+        $this->db->insert(db_prefix() . $this->config->item('rest_keys_table'), $data);
         $insert_id = $this->db->insert_id();
         if ($insert_id) {
-            log_activity('New User Added [ID: '.$insert_id.', Name: '.$data['name'].']');
+            log_activity('New User Added [ID: ' . $insert_id . ', Name: ' . $data['name'] . ']');
         }
 
         $this->set_permissions($insert_id, $permissions);
@@ -217,9 +298,9 @@ class REST_model extends App_Model
 
         $result = false;
         $this->db->where('id', $id);
-        $this->db->update(db_prefix() . $this->config->item('rest_api_keys'), $data);
+        $this->db->update(db_prefix() . $this->config->item('rest_keys_table'), $data);
         if ($this->db->affected_rows() > 0) {
-            log_activity('Ticket User Updated [ID: '.$id.' Name: '.$data['name'].']');
+            log_activity('Ticket User Updated [ID: ' . $id . ' Name: ' . $data['name'] . ']');
             $result = true;
         }
         
@@ -233,9 +314,9 @@ class REST_model extends App_Model
         $this->remove_permissions($id);
 
         $this->db->where('id', $id);
-        $this->db->delete(db_prefix() . $this->config->item('rest_api_keys'));
+        $this->db->delete(db_prefix() . $this->config->item('rest_keys_table'));
         if ($this->db->affected_rows() > 0) {
-            log_activity('User Deleted [ID: '.$id.']');
+            log_activity('User Deleted [ID: ' . $id . ']');
 
             return true;
         }
@@ -243,12 +324,91 @@ class REST_model extends App_Model
         return false;
     }
 
-    private function token()
+    /**
+     * Validate Token with Header
+     * @return : user informations
+     */
+    public function validateToken()
     {
-        if(!empty($headers) AND is_array($headers)) {
+        /**
+         * Request All Headers
+         */
+        $headers = $this->input->request_headers();
+        
+        /**
+         * Authorization Header Exists
+         */
+        $token_data = $this->tokenIsExist($headers);
+        if ($token_data['status'] === TRUE)
+        {
+            try
+            {
+                /**
+                 * Token Decode
+                 */
+                try {
+                    $token_decode = Api_JWT::decode($token_data['token'], new Api_Key($this->token_key, $this->token_algorithm));
+                } catch(Exception $e) {
+                    return ['status' => FALSE, 'message' => $e->getMessage()];
+                }
+
+                if(!empty($token_decode) AND is_object($token_decode))
+                {
+                    // Check Token API Time [API_TIME]
+                    if (empty($token_decode->API_TIME OR !is_numeric($token_decode->API_TIME))) {                        
+                        return ['status' => FALSE, 'message' => 'Token Time Not Define!'];
+                    } else {
+                        /**
+                         * Check Token Time Valid 
+                         */
+                        $time_difference = strtotime('now') - $token_decode->API_TIME;
+                        if ( $time_difference >= $this->token_expire_time )
+                        {
+                            return ['status' => FALSE, 'message' => 'Token Time Expire.'];
+
+                        } else {
+                            /**
+                             * All Validation False Return Data
+                             */
+                            return ['status' => TRUE, 'data' => $token_decode];
+                        }
+                    }                    
+                } else {
+                    return ['status' => FALSE, 'message' => 'Forbidden'];
+                }
+            } catch(Exception $e) {
+                return ['status' => FALSE, 'message' => $e->getMessage()];
+            }
+        } else {
+            // Authorization Header Not Found!
+            return ['status' => FALSE, 'message' => $token_data['message'] ];
+        }
+    }
+
+    /**
+     * Token Header Check
+     * @param: request headers
+     */
+    private function tokenIsExist($headers)
+    {
+        if (!empty($headers) AND is_array($headers)) {
             foreach ($headers as $header_name => $header_value) {
-                if (strtolower(trim($header_name)) == strtolower(trim($this->token_header)))
+                if (strtolower(trim($header_name)) == strtolower(trim($this->token_header))) {
+                    return ['status' => TRUE, 'token' => $header_value];
+                }
+            }
+        }
+        return ['status' => FALSE, 'message' => 'Token is not defined.'];
+    }
+
+    private function token()
+    {        
+        $headers = $this->input->request_headers();
+        if (!empty($headers) AND is_array($headers)) {
+            foreach ($headers as $header_name => $header_value) {
+                if (strtolower(trim($header_name)) == strtolower(trim($this->token_header))) {
                     return $header_value;
+                }
             }
         }
         return 'Token is not defined.';
@@ -256,8 +416,9 @@ class REST_model extends App_Model
 
     public function get_token()
     {
+        $token = $this->token();
         $this->db->where('token', $token);
-        $user = $this->db->get(db_prefix() . 'user_api')->row();
+        $user = $this->db->get(db_prefix() . $this->config->item('rest_keys_table'))->row();
         if (isset($user)) {
             return true;
         }
@@ -265,10 +426,11 @@ class REST_model extends App_Model
         return false;
     }
 
-    public function check_token($token)
+    public function check_token()
     {
+        $token = $this->token();
         $this->db->where('token', $token);
-        $user = $this->db->get(db_prefix() . 'user_api')->row();
+        $user = $this->db->get(db_prefix() . $this->config->item('rest_keys_table'))->row();
         if (isset($user)) {
             return true;
         }
@@ -276,16 +438,17 @@ class REST_model extends App_Model
         return false;
     }
 
-    public function check_token_permission($token, $feature = '', $capability = '')
+    public function check_token_permission($feature = '', $capability = '')
     {
+        $token = $this->token();
         $this->db->where('token', $token);
-        $user = $this->db->get(db_prefix() . 'user_api')->row();
+        $user = $this->db->get(db_prefix() . $this->config->item('rest_keys_table'))->row();
         if (isset($user)) {
             if ($user->permission_enable) {
-                $this->db->where('api_id', $user->id);
+                $this->db->where('key_id', $user->id);
                 $this->db->where('feature', $feature);
                 $this->db->where('capability', $capability);
-                $permission = $this->db->get(db_prefix() . 'user_api_permissions')->row();
+                $permission = $this->db->get(db_prefix() . $this->config->item('rest_key_permissions_table'))->row();
     
                 if (isset($permission)) {
                     return true;

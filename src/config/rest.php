@@ -315,7 +315,7 @@ $config['rest_keys_table'] = 'rest_api_keys';
 |     `id` INT(11) NOT NULL AUTO_INCREMENT,
 |     `user` VARCHAR(50) NOT NULL,
 |     `name` VARCHAR(50) NOT NULL,
-|     `key` VARCHAR(255) NOT NULL,
+|     `token` VARCHAR(255) NOT NULL,
 |     `expiration_date` DATETIME NULL,
 |     `permission_enable` TINYINT(4) DEFAULT 0,
 |     `quota_limit` INT(11) NOT NULL DEFAULT 1000,
@@ -338,7 +338,7 @@ $config['rest_enable_keys'] = TRUE;
 | column name to match e.g. my_key
 |
 */
-$config['rest_key_column'] = 'key';
+$config['rest_key_column'] = 'token';
 
 /*
 |--------------------------------------------------------------------------
@@ -494,12 +494,14 @@ $config['rest_logs_json_params'] = FALSE;
 |
 | Default table schema:
 |   CREATE TABLE `limits` (
-|       `id` INT(11) NOT NULL AUTO_INCREMENT,
-|       `uri` VARCHAR(255) NOT NULL,
-|       `count` INT(10) NOT NULL,
-|       `hour_started` INT(11) NOT NULL,
-|       `api_key` VARCHAR(40) NOT NULL,
-|       PRIMARY KEY (`id`)
+|      `id` INT(11) NOT NULL AUTO_INCREMENT,
+|      `api_id` INT(11) NOT NULL,
+|      `uri` VARCHAR(511) NOT NULL,
+|      `class` VARCHAR(511) NOT NULL,
+|      `method` VARCHAR(511) NOT NULL,
+|      `ip_address` VARCHAR(63) NOT NULL,
+|      `time` DATETIME NOT NULL,
+|      PRIMARY KEY (`id`));
 |   ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 |
 | To specify the limits within the controller's __construct() method, add per-method
@@ -520,7 +522,7 @@ $config['rest_enable_limits'] = TRUE;
 | table name to match e.g. my_limits
 |
 */
-$config['rest_limits_table'] = 'user_api_limit';
+$config['rest_key_limits_table'] = 'rest_key_limits';
 
 /*
 |--------------------------------------------------------------------------

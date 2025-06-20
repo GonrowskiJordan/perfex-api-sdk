@@ -17,3 +17,6 @@ $lang['text_rest_unknown_method'] = 'Unknown method';
 $lang['text_rest_unsupported'] = 'Unsupported protocol';
 $lang['text_rest_create_api_limit_table'] = 'Create API Limit Database Table';
 $lang['text_rest_limit_type_invalid'] = 'Limit Type Invalid';
+
+$lang['quota_limit'] = 'Quota Limit';
+$lang['rate_limit'] = 'Rate Limit';
